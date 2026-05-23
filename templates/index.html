@@ -3,371 +3,1045 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>AI Code Reviewer</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<title>ReviewBot — AI Code Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #111118;
-    --border: #1e1e2e;
-    --accent: #7c3aed;
-    --accent2: #06d6a0;
-    --text: #e2e2f0;
-    --muted: #6b6b8a;
-    --danger: #f43f5e;
-    --warn: #f59e0b;
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
  
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #05050a;
+  --surface: #0d0d16;
+  --surface2: #13131f;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.12);
+  --green: #00ff94;
+  --green2: #00c96e;
+  --blue: #3b82f6;
+  --red: #ff4757;
+  --yellow: #ffd32a;
+  --text: #f0f0f8;
+  --muted: #6b6b8a;
+  --muted2: #9898b8;
+}
  
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    min-height: 100vh;
-    background-image: radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, transparent 50%),
-                      radial-gradient(ellipse at 80% 80%, #001a12 0%, transparent 50%);
-  }
+html { scroll-behavior: smooth; }
  
-  header {
-    padding: 2rem 3rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: none;
+}
  
-  .logo {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem;
-  }
+/* Custom cursor */
+.cursor {
+  position: fixed;
+  width: 10px; height: 10px;
+  background: var(--green);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transition: transform 0.1s;
+  mix-blend-mode: difference;
+}
+.cursor-ring {
+  position: fixed;
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--green);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  transition: all 0.15s ease;
+  mix-blend-mode: difference;
+}
  
-  header h1 {
-    font-size: 1.4rem;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-  }
+/* Animated background grid */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,148,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,148,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  z-index: 0;
+  animation: gridMove 20s linear infinite;
+}
+@keyframes gridMove {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(60px); }
+}
  
-  header span {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--accent2);
-    background: rgba(6,214,160,0.1);
-    padding: 2px 8px;
-    border-radius: 20px;
-    border: 1px solid rgba(6,214,160,0.2);
-    margin-left: 0.5rem;
-  }
+/* Glow orbs */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 0;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+.orb1 { width: 500px; height: 500px; background: var(--green); top: -100px; left: -100px; animation-delay: 0s; }
+.orb2 { width: 400px; height: 400px; background: var(--blue); bottom: -100px; right: -100px; animation-delay: 3s; }
+.orb3 { width: 300px; height: 300px; background: var(--green2); top: 50%; left: 50%; animation-delay: 6s; }
  
-  main {
-    max-width: 860px;
-    margin: 3rem auto;
-    padding: 0 2rem;
-  }
+@keyframes orbFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-30px) scale(1.05); }
+}
  
-  .hero {
-    text-align: center;
-    margin-bottom: 3rem;
-  }
+/* Noise overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
  
-  .hero h2 {
-    font-size: 2.8rem;
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: -1px;
-    background: linear-gradient(135deg, #fff 40%, var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 0.8rem;
-  }
+/* ---- LAYOUT ---- */
+.wrap { position: relative; z-index: 2; }
  
-  .hero p {
-    color: var(--muted);
-    font-size: 1rem;
-    font-family: 'JetBrains Mono', monospace;
-  }
+/* NAV */
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 3rem;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(5,5,10,0.8);
+  animation: fadeDown 0.6s ease both;
+}
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
  
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 2rem;
-    margin-bottom: 1.5rem;
-  }
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.logo-mark {
+  width: 36px; height: 36px;
+  background: var(--green);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+.logo-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.3), transparent);
+}
+.logo-text {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+.logo-text span { color: var(--green); }
  
-  label {
-    display: block;
-    font-size: 0.8rem;
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--accent2);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 0.6rem;
-  }
+.nav-pills {
+  display: flex;
+  gap: 0.5rem;
+}
+.nav-pill {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.nav-pill.active {
+  background: rgba(0,255,148,0.1);
+  border-color: rgba(0,255,148,0.3);
+  color: var(--green);
+}
  
-  input[type="text"] {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.9rem 1.2rem;
-    color: var(--text);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.2s;
-  }
+.nav-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--green);
+}
+.status-dot {
+  width: 7px; height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,148,0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(0,255,148,0); }
+}
  
-  input[type="text"]:focus {
-    border-color: var(--accent);
-  }
+/* HERO */
+.hero {
+  text-align: center;
+  padding: 6rem 2rem 4rem;
+  animation: fadeUp 0.8s ease 0.2s both;
+}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
  
-  input[type="text"]::placeholder {
-    color: var(--muted);
-  }
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0,255,148,0.08);
+  border: 1px solid rgba(0,255,148,0.2);
+  border-radius: 30px;
+  padding: 6px 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--green);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+}
+.hero-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
  
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    margin-top: 1.2rem;
-    padding-top: 1.2rem;
-    border-top: 1px solid var(--border);
-  }
+.hero h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(4rem, 10vw, 8rem);
+  letter-spacing: 4px;
+  line-height: 0.95;
+  margin-bottom: 1.5rem;
+}
  
-  .toggle {
-    position: relative;
-    width: 42px; height: 24px;
-  }
+.hero h1 .line1 { display: block; color: var(--text); }
+.hero h1 .line2 {
+  display: block;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--green);
+}
+.hero h1 .line3 { display: block; color: var(--green); }
  
-  .toggle input { opacity: 0; width: 0; height: 0; }
+.hero-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--muted2);
+  max-width: 500px;
+  margin: 0 auto 3rem;
+  line-height: 1.8;
+}
  
-  .slider {
-    position: absolute; inset: 0;
-    background: var(--border);
-    border-radius: 24px;
-    cursor: pointer;
-    transition: 0.3s;
-  }
+/* STATS BAR */
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  margin-bottom: 4rem;
+  animation: fadeUp 0.8s ease 0.4s both;
+}
+.stat {
+  text-align: center;
+}
+.stat-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  color: var(--green);
+  letter-spacing: 2px;
+}
+.stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
  
-  .slider:before {
-    content: '';
-    position: absolute;
-    width: 18px; height: 18px;
-    left: 3px; bottom: 3px;
-    background: white;
-    border-radius: 50%;
-    transition: 0.3s;
-  }
+/* MAIN CARD */
+.main-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+  animation: fadeUp 0.8s ease 0.5s both;
+}
  
-  input:checked + .slider { background: var(--accent); }
-  input:checked + .slider:before { transform: translateX(18px); }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+}
  
-  .toggle-label {
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.6;
+}
  
-  .toggle-label strong { color: var(--text); }
+.card-header {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface2);
+}
  
-  button#reviewBtn {
-    width: 100%;
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: linear-gradient(135deg, var(--accent), #5b21b6);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    font-family: 'Syne', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    transition: opacity 0.2s, transform 0.1s;
-    position: relative;
-    overflow: hidden;
-  }
+.card-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--green);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
  
-  button#reviewBtn:hover { opacity: 0.9; transform: translateY(-1px); }
-  button#reviewBtn:active { transform: translateY(0); }
-  button#reviewBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.card-dots {
+  display: flex;
+  gap: 6px;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #ff5f56; }
+.dot-y { background: #ffbd2e; }
+.dot-g { background: #27c93f; }
  
-  .spinner {
-    display: none;
-    width: 18px; height: 18px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    margin: 0 auto;
-  }
+.card-body { padding: 2rem; }
  
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* INPUT */
+.input-group { margin-bottom: 1.5rem; }
  
-  #result { display: none; }
+.input-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted2);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 0.8rem;
+}
+.input-label::before {
+  content: '//';
+  color: var(--green);
+  opacity: 0.6;
+}
  
-  .meta-bar {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 1.5rem;
-  }
+.input-wrapper {
+  position: relative;
+}
  
-  .meta-chip {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    padding: 4px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    color: var(--muted);
-  }
+.input-wrapper input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 1rem 1.2rem 1rem 3rem;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  outline: none;
+  transition: all 0.3s;
+}
+.input-wrapper input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(0,255,148,0.08), 0 0 20px rgba(0,255,148,0.05);
+}
+.input-wrapper input::placeholder { color: var(--muted); }
  
-  .meta-chip span { color: var(--text); font-weight: 700; }
+.input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 0.9rem;
+  transition: color 0.3s;
+}
+.input-wrapper input:focus ~ .input-icon { color: var(--green); }
  
-  .review-content {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.82rem;
-    line-height: 1.8;
-    color: #c9c9e0;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
+/* DIVIDER */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 1.5rem 0;
+  position: relative;
+}
+.divider::after {
+  content: 'OPTIONS';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  padding: 0 1rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 3px;
+}
  
-  .review-content h2 {
-    font-family: 'Syne', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text);
-    margin: 1.5rem 0 0.5rem;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid var(--border);
-  }
+/* TOGGLE */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  transition: border-color 0.3s;
+}
+.toggle-row:hover { border-color: var(--border2); }
  
-  .posted-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(6,214,160,0.1);
-    border: 1px solid rgba(6,214,160,0.3);
-    color: var(--accent2);
-    font-size: 0.8rem;
-    font-family: 'JetBrains Mono', monospace;
-    padding: 6px 14px;
-    border-radius: 20px;
-    margin-top: 1rem;
-    text-decoration: none;
-  }
+.toggle-info h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.toggle-info p {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
  
-  .error-box {
-    background: rgba(244,63,94,0.08);
-    border: 1px solid rgba(244,63,94,0.3);
-    border-radius: 10px;
-    padding: 1rem 1.2rem;
-    color: var(--danger);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-  }
+.toggle {
+  position: relative;
+  width: 46px; height: 26px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 26px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.slider::before {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  left: 3px; top: 3px;
+  background: var(--muted);
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+input:checked + .slider {
+  background: rgba(0,255,148,0.15);
+  border-color: var(--green);
+}
+input:checked + .slider::before {
+  transform: translateX(20px);
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(0,255,148,0.5);
+}
  
-  .features {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin-top: 2rem;
-  }
+/* BUTTON */
+.btn-review {
+  width: 100%;
+  padding: 1.1rem;
+  background: var(--green);
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: 3px;
+  cursor: none;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.btn-review::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+.btn-review:hover::before { left: 100%; }
+.btn-review:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,255,148,0.3);
+}
+.btn-review:active { transform: translateY(0); }
+.btn-review:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
  
-  .feature {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.2rem;
-    text-align: center;
-  }
+.btn-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
  
-  .feature .icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
-  .feature h3 { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.3rem; }
-  .feature p { font-size: 0.75rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+/* LOADING */
+.loading-bar {
+  display: none;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 1rem;
+  overflow: hidden;
+}
+.loading-bar.active { display: block; }
+.loading-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--blue), var(--green));
+  background-size: 200% 100%;
+  animation: loadingMove 1.5s linear infinite;
+  width: 100%;
+}
+@keyframes loadingMove {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+ 
+.loading-text {
+  display: none;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--muted2);
+  margin-top: 0.8rem;
+  animation: blink 1.5s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+ 
+/* RESULT */
+#result { display: none; margin-top: 1.5rem; }
+ 
+.result-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  animation: slideIn 0.5s ease both;
+}
+@keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+ 
+.result-header {
+  padding: 1.2rem 1.5rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+ 
+.result-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--green);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+ 
+.meta-chips {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.chip {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+}
+.chip span { color: var(--text); }
+ 
+.result-body {
+  padding: 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+}
+.result-body::-webkit-scrollbar { width: 4px; }
+.result-body::-webkit-scrollbar-track { background: transparent; }
+.result-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+ 
+.review-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.9;
+  color: #b8b8d8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.review-text h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 1.5rem 0 0.6rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--green);
+}
+ 
+.posted-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(0,255,148,0.08);
+  border: 1px solid rgba(0,255,148,0.25);
+  color: var(--green);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin-top: 1rem;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+.posted-link:hover {
+  background: rgba(0,255,148,0.15);
+  transform: translateX(3px);
+}
+ 
+.error-box {
+  background: rgba(255,71,87,0.08);
+  border: 1px solid rgba(255,71,87,0.25);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  color: var(--red);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+ 
+/* FEATURES SECTION */
+.features-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+  animation: fadeUp 0.8s ease 0.7s both;
+}
+ 
+.section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--green);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+ 
+.section-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.5rem;
+  letter-spacing: 3px;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  color: var(--text);
+}
+ 
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+ 
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  cursor: none;
+}
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,255,148,0.04), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.feature-card:hover {
+  border-color: rgba(0,255,148,0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+.feature-card:hover::before { opacity: 1; }
+ 
+.feature-icon {
+  width: 42px; height: 42px;
+  background: rgba(0,255,148,0.08);
+  border: 1px solid rgba(0,255,148,0.15);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+.feature-card h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+.feature-card p {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+ 
+/* HOW IT WORKS */
+.how-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 2rem 8rem;
+}
+ 
+.steps {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+.steps::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  left: calc(16.6% + 24px);
+  right: calc(16.6% + 24px);
+  height: 1px;
+  background: linear-gradient(90deg, var(--green), var(--blue), var(--green));
+  opacity: 0.3;
+}
+ 
+.step {
+  flex: 1;
+  text-align: center;
+  padding: 0 0.5rem;
+}
+.step-num {
+  width: 48px; height: 48px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  color: var(--green);
+  margin: 0 auto 0.8rem;
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s;
+}
+.step:hover .step-num {
+  background: rgba(0,255,148,0.1);
+  border-color: var(--green);
+  box-shadow: 0 0 20px rgba(0,255,148,0.2);
+}
+.step h4 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.step p {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+ 
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 2;
+}
+.footer-left {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.footer-left span { color: var(--green); }
+.footer-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
 </style>
 </head>
 <body>
  
-<header>
-  <div class="logo">🔍</div>
-  <h1>ReviewBot <span>AI-POWERED</span></h1>
-</header>
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="bg-grid"></div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
  
-<main>
-  <div class="hero">
-    <h2>Instant AI Code Review</h2>
-    <p>// paste a github PR → get expert feedback in seconds</p>
+<div class="wrap">
+  <nav>
+    <div class="nav-logo">
+      <div class="logo-mark">🔍</div>
+      <div class="logo-text">Review<span>Bot</span></div>
+    </div>
+    <div class="nav-pills">
+      <div class="nav-pill active">v1.0</div>
+      <div class="nav-pill">GitHub</div>
+      <div class="nav-pill">AI</div>
+    </div>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      SYSTEM ONLINE
+    </div>
+  </nav>
+ 
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">AI Agent · Hackathon 2026</div>
+    <h1>
+      <span class="line1">INSTANT</span>
+      <span class="line2">CODE</span>
+      <span class="line3">REVIEW</span>
+    </h1>
+    <p class="hero-sub">// paste any github pull request URL<br/>→ get expert AI feedback in seconds</p>
+  </section>
+ 
+  <!-- STATS -->
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-num">4+</div>
+      <div class="stat-label">Issue Types</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">&lt;10s</div>
+      <div class="stat-label">Review Time</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">100%</div>
+      <div class="stat-label">Automated</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">∞</div>
+      <div class="stat-label">PRs Supported</div>
+    </div>
   </div>
  
-  <div class="card">
-    <label>GitHub Pull Request URL</label>
-    <input type="text" id="prUrl" placeholder="https://github.com/owner/repo/pull/123"/>
+  <!-- MAIN INPUT CARD -->
+  <div class="main-section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-dots">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+        </div>
+        <div class="card-title">// review_terminal</div>
+        <div style="width:52px"></div>
+      </div>
+      <div class="card-body">
+        <div class="input-group">
+          <div class="input-label">Pull Request URL</div>
+          <div class="input-wrapper">
+            <input type="text" id="prUrl" placeholder="https://github.com/owner/repo/pull/123"/>
+            <span class="input-icon">⌥</span>
+          </div>
+        </div>
  
-    <div class="toggle-row">
-      <label class="toggle">
-        <input type="checkbox" id="postToggle"/>
-        <span class="slider"></span>
-      </label>
-      <div class="toggle-label">
-        <strong>Post review to GitHub</strong> — adds a comment directly on the PR
+        <div class="divider"></div>
+ 
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <h4>Post Review to GitHub</h4>
+            <p>// auto-comment directly on the pull request</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="postToggle"/>
+            <span class="slider"></span>
+          </label>
+        </div>
+ 
+        <button class="btn-review" id="reviewBtn" onclick="startReview()">
+          <div class="btn-inner">
+            <span id="btnText">⚡ ANALYZE PULL REQUEST</span>
+          </div>
+        </button>
+ 
+        <div class="loading-bar" id="loadingBar">
+          <div class="loading-fill"></div>
+        </div>
+        <div class="loading-text" id="loadingText">// analyzing code changes with AI...</div>
+ 
+        <div id="result">
+          <div class="result-card">
+            <div class="result-header">
+              <div class="result-title">// review_output</div>
+              <div class="meta-chips" id="metaChips"></div>
+            </div>
+            <div class="result-body">
+              <div id="reviewOutput"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
- 
-    <button id="reviewBtn" onclick="startReview()">
-      <span id="btnText">⚡ Review This PR</span>
-      <div class="spinner" id="spinner"></div>
-    </button>
   </div>
  
-  <div id="result">
-    <div class="card">
-      <div class="meta-bar" id="metaBar"></div>
-      <div id="reviewOutput"></div>
+  <!-- FEATURES -->
+  <div class="features-section">
+    <div class="section-label">capabilities</div>
+    <div class="section-title">WHAT WE DETECT</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🐛</div>
+        <h3>Bug Detection</h3>
+        <p>Logic errors, edge cases, incorrect behavior caught before merge</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Security Scan</h3>
+        <p>SQL injection, XSS, hardcoded secrets, command injection</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Performance</h3>
+        <p>Bottlenecks, inefficient loops, memory leaks identified</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧹</div>
+        <h3>Code Quality</h3>
+        <p>Smells, duplication, naming issues, missing error handling</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>Auto-Comment</h3>
+        <p>Posts review directly as a GitHub PR comment instantly</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏆</div>
+        <h3>PR Scoring</h3>
+        <p>Overall quality score with a one-line merge verdict</p>
+      </div>
     </div>
   </div>
  
-  <div class="features">
-    <div class="feature">
-      <div class="icon">🐛</div>
-      <h3>Bug Detection</h3>
-      <p>Finds logic errors & edge cases</p>
-    </div>
-    <div class="feature">
-      <div class="icon">🔒</div>
-      <h3>Security Scan</h3>
-      <p>Spots vulnerabilities & risks</p>
-    </div>
-    <div class="feature">
-      <div class="icon">⚡</div>
-      <h3>Performance</h3>
-      <p>Identifies bottlenecks early</p>
+  <!-- HOW IT WORKS -->
+  <div class="how-section">
+    <div class="section-label">workflow</div>
+    <div class="section-title">HOW IT WORKS</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h4>Paste PR URL</h4>
+        <p>Any public GitHub pull request</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h4>Fetch Diff</h4>
+        <p>GitHub API pulls all code changes</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h4>AI Analysis</h4>
+        <p>LLM reviews every line of code</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h4>Get Review</h4>
+        <p>Structured feedback in seconds</p>
+      </div>
+      <div class="step">
+        <div class="step-num">05</div>
+        <h4>Post to PR</h4>
+        <p>Auto-comments on GitHub PR</p>
+      </div>
     </div>
   </div>
-</main>
+ 
+  <footer>
+    <div class="footer-left">Built for <span>AI Agent Hackathon 2026</span> · ReviewBot v1.0</div>
+    <div class="footer-right">Powered by GitHub API + AI</div>
+  </footer>
+</div>
  
 <script>
+// Custom cursor
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursorRing');
+let mx = 0, my = 0, rx = 0, ry = 0;
+ 
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.left = mx - 5 + 'px';
+  cursor.style.top = my - 5 + 'px';
+});
+ 
+function animRing() {
+  rx += (mx - rx) * 0.12;
+  ry += (my - ry) * 0.12;
+  ring.style.left = rx - 18 + 'px';
+  ring.style.top = ry - 18 + 'px';
+  requestAnimationFrame(animRing);
+}
+animRing();
+ 
+document.querySelectorAll('button, a, input, label, .feature-card').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    cursor.style.transform = 'scale(2)';
+    ring.style.transform = 'scale(1.5)';
+    ring.style.borderColor = 'var(--green)';
+  });
+  el.addEventListener('mouseleave', () => {
+    cursor.style.transform = 'scale(1)';
+    ring.style.transform = 'scale(1)';
+    ring.style.borderColor = 'var(--green)';
+  });
+});
+ 
+// Review logic
 async function startReview() {
   const prUrl = document.getElementById('prUrl').value.trim();
   const postToggle = document.getElementById('postToggle').checked;
   const btn = document.getElementById('reviewBtn');
   const btnText = document.getElementById('btnText');
-  const spinner = document.getElementById('spinner');
+  const loadingBar = document.getElementById('loadingBar');
+  const loadingText = document.getElementById('loadingText');
   const result = document.getElementById('result');
  
-  if (!prUrl) {
-    alert('Please enter a GitHub PR URL');
-    return;
-  }
+  if (!prUrl) { shakInput(); return; }
  
   btn.disabled = true;
-  btnText.style.display = 'none';
-  spinner.style.display = 'block';
+  btnText.textContent = '// ANALYZING...';
+  loadingBar.classList.add('active');
+  loadingText.style.display = 'block';
   result.style.display = 'none';
  
   try {
@@ -376,54 +1050,64 @@ async function startReview() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pr_url: prUrl, post_to_github: postToggle })
     });
- 
     const data = await response.json();
  
+    result.style.display = 'block';
+ 
     if (data.error) {
-      result.style.display = 'block';
+      document.getElementById('metaChips').innerHTML = '';
       document.getElementById('reviewOutput').innerHTML = `<div class="error-box">❌ ${data.error}</div>`;
-      document.getElementById('metaBar').innerHTML = '';
     } else {
-      result.style.display = 'block';
- 
-      document.getElementById('metaBar').innerHTML = `
-        <div class="meta-chip">PR: <span>${data.pr_title}</span></div>
-        <div class="meta-chip">Author: <span>${data.author}</span></div>
-        <div class="meta-chip">Files changed: <span>${data.files_changed}</span></div>
+      document.getElementById('metaChips').innerHTML = `
+        <div class="chip">PR: <span>${data.pr_title?.substring(0,30)}${data.pr_title?.length > 30 ? '…' : ''}</span></div>
+        <div class="chip">By: <span>${data.author}</span></div>
+        <div class="chip">Files: <span>${data.files_changed}</span></div>
       `;
- 
-      let reviewHtml = formatReview(data.review);
- 
+      let html = formatReview(data.review);
       if (data.posted_to_github && data.comment_url) {
-        reviewHtml += `<a href="${data.comment_url}" target="_blank" class="posted-badge">✅ Posted to GitHub PR →</a>`;
+        html += `<a href="${data.comment_url}" target="_blank" class="posted-link">✅ Posted to GitHub PR →</a>`;
       }
- 
-      document.getElementById('reviewOutput').innerHTML = reviewHtml;
+      document.getElementById('reviewOutput').innerHTML = html;
     }
   } catch (err) {
     result.style.display = 'block';
-    document.getElementById('reviewOutput').innerHTML = `<div class="error-box">❌ Error: ${err.message}</div>`;
-    document.getElementById('metaBar').innerHTML = '';
+    document.getElementById('metaChips').innerHTML = '';
+    document.getElementById('reviewOutput').innerHTML = `<div class="error-box">❌ ${err.message}</div>`;
   } finally {
     btn.disabled = false;
-    btnText.style.display = 'block';
-    spinner.style.display = 'none';
+    btnText.textContent = '⚡ ANALYZE PULL REQUEST';
+    loadingBar.classList.remove('active');
+    loadingText.style.display = 'none';
   }
 }
  
 function formatReview(text) {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
- 
-  const withHeaders = escaped.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-  return `<div class="review-content">${withHeaders}</div>`;
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const withH = escaped.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  return `<div class="review-text">${withH}</div>`;
 }
  
-document.getElementById('prUrl').addEventListener('keydown', (e) => {
+function shakInput() {
+  const inp = document.getElementById('prUrl');
+  inp.style.borderColor = 'var(--red)';
+  inp.style.animation = 'shake 0.4s ease';
+  setTimeout(() => { inp.style.borderColor = ''; inp.style.animation = ''; }, 600);
+}
+ 
+document.getElementById('prUrl').addEventListener('keydown', e => {
   if (e.key === 'Enter') startReview();
 });
+ 
+// Add shake keyframe dynamically
+const style = document.createElement('style');
+style.textContent = `@keyframes shake {
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)}
+  60%{transform:translateX(-5px)}
+  80%{transform:translateX(5px)}
+}`;
+document.head.appendChild(style);
 </script>
 </body>
 </html>
