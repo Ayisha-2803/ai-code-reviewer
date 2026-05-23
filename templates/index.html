@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Code Reviewer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #7c3aed;
+    --accent2: #06d6a0;
+    --text: #e2e2f0;
+    --muted: #6b6b8a;
+    --danger: #f43f5e;
+    --warn: #f59e0b;
+  }
+ 
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    background-image: radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, #001a12 0%, transparent 50%);
+  }
+ 
+  header {
+    padding: 2rem 3rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+ 
+  .logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+  }
+ 
+  header h1 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+ 
+  header span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent2);
+    background: rgba(6,214,160,0.1);
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(6,214,160,0.2);
+    margin-left: 0.5rem;
+  }
+ 
+  main {
+    max-width: 860px;
+    margin: 3rem auto;
+    padding: 0 2rem;
+  }
+ 
+  .hero {
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+ 
+  .hero h2 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #fff 40%, var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.8rem;
+  }
+ 
+  .hero p {
+    color: var(--muted);
+    font-size: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+ 
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+  }
+ 
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+  }
+ 
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1.2rem;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+ 
+  input[type="text"]:focus {
+    border-color: var(--accent);
+  }
+ 
+  input[type="text"]::placeholder {
+    color: var(--muted);
+  }
+ 
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-top: 1.2rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+  }
+ 
+  .toggle {
+    position: relative;
+    width: 42px; height: 24px;
+  }
+ 
+  .toggle input { opacity: 0; width: 0; height: 0; }
+ 
+  .slider {
+    position: absolute; inset: 0;
+    background: var(--border);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+ 
+  .slider:before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+  }
+ 
+  input:checked + .slider { background: var(--accent); }
+  input:checked + .slider:before { transform: translateX(18px); }
+ 
+  .toggle-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+ 
+  .toggle-label strong { color: var(--text); }
+ 
+  button#reviewBtn {
+    width: 100%;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--accent), #5b21b6);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: opacity 0.2s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+ 
+  button#reviewBtn:hover { opacity: 0.9; transform: translateY(-1px); }
+  button#reviewBtn:active { transform: translateY(0); }
+  button#reviewBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+ 
+  .spinner {
+    display: none;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto;
+  }
+ 
+  @keyframes spin { to { transform: rotate(360deg); } }
+ 
+  #result { display: none; }
+ 
+  .meta-bar {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+ 
+  .meta-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+ 
+  .meta-chip span { color: var(--text); font-weight: 700; }
+ 
+  .review-content {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+    color: #c9c9e0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+ 
+  .review-content h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 1.5rem 0 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+ 
+  .posted-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(6,214,160,0.1);
+    border: 1px solid rgba(6,214,160,0.3);
+    color: var(--accent2);
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 6px 14px;
+    border-radius: 20px;
+    margin-top: 1rem;
+    text-decoration: none;
+  }
+ 
+  .error-box {
+    background: rgba(244,63,94,0.08);
+    border: 1px solid rgba(244,63,94,0.3);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    color: var(--danger);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+  }
+ 
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+ 
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+ 
+  .feature .icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+  .feature h3 { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.3rem; }
+  .feature p { font-size: 0.75rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+ 
+<header>
+  <div class="logo">🔍</div>
+  <h1>ReviewBot <span>AI-POWERED</span></h1>
+</header>
+ 
+<main>
+  <div class="hero">
+    <h2>Instant AI Code Review</h2>
+    <p>// paste a github PR → get expert feedback in seconds</p>
+  </div>
+ 
+  <div class="card">
+    <label>GitHub Pull Request URL</label>
+    <input type="text" id="prUrl" placeholder="https://github.com/owner/repo/pull/123"/>
+ 
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="postToggle"/>
+        <span class="slider"></span>
+      </label>
+      <div class="toggle-label">
+        <strong>Post review to GitHub</strong> — adds a comment directly on the PR
+      </div>
+    </div>
+ 
+    <button id="reviewBtn" onclick="startReview()">
+      <span id="btnText">⚡ Review This PR</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+  </div>
+ 
+  <div id="result">
+    <div class="card">
+      <div class="meta-bar" id="metaBar"></div>
+      <div id="reviewOutput"></div>
+    </div>
+  </div>
+ 
+  <div class="features">
+    <div class="feature">
+      <div class="icon">🐛</div>
+      <h3>Bug Detection</h3>
+      <p>Finds logic errors & edge cases</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🔒</div>
+      <h3>Security Scan</h3>
+      <p>Spots vulnerabilities & risks</p>
+    </div>
+    <div class="feature">
+      <div class="icon">⚡</div>
+      <h3>Performance</h3>
+      <p>Identifies bottlenecks early</p>
+    </div>
+  </div>
+</main>
+ 
+<script>
+async function startReview() {
+  const prUrl = document.getElementById('prUrl').value.trim();
+  const postToggle = document.getElementById('postToggle').checked;
+  const btn = document.getElementById('reviewBtn');
+  const btnText = document.getElementById('btnText');
+  const spinner = document.getElementById('spinner');
+  const result = document.getElementById('result');
+ 
+  if (!prUrl) {
+    alert('Please enter a GitHub PR URL');
+    return;
+  }
+ 
+  btn.disabled = true;
+  btnText.style.display = 'none';
+  spinner.style.display = 'block';
+  result.style.display = 'none';
+ 
+  try {
+    const response = await fetch('/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pr_url: prUrl, post_to_github: postToggle })
+    });
+ 
+    const data = await response.json();
+ 
+    if (data.error) {
+      result.style.display = 'block';
+      document.getElementById('reviewOutput').innerHTML = `<div class="error-box">❌ ${data.error}</div>`;
+      document.getElementById('metaBar').innerHTML = '';
+    } else {
+      result.style.display = 'block';
+ 
+      document.getElementById('metaBar').innerHTML = `
+        <div class="meta-chip">PR: <span>${data.pr_title}</span></div>
+        <div class="meta-chip">Author: <span>${data.author}</span></div>
+        <div class="meta-chip">Files changed: <span>${data.files_changed}</span></div>
+      `;
+ 
+      let reviewHtml = formatReview(data.review);
+ 
+      if (data.posted_to_github && data.comment_url) {
+        reviewHtml += `<a href="${data.comment_url}" target="_blank" class="posted-badge">✅ Posted to GitHub PR →</a>`;
+      }
+ 
+      document.getElementById('reviewOutput').innerHTML = reviewHtml;
+    }
+  } catch (err) {
+    result.style.display = 'block';
+    document.getElementById('reviewOutput').innerHTML = `<div class="error-box">❌ Error: ${err.message}</div>`;
+    document.getElementById('metaBar').innerHTML = '';
+  } finally {
+    btn.disabled = false;
+    btnText.style.display = 'block';
+    spinner.style.display = 'none';
+  }
+}
+ 
+function formatReview(text) {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+ 
+  const withHeaders = escaped.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  return `<div class="review-content">${withHeaders}</div>`;
+}
+ 
+document.getElementById('prUrl').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startReview();
+});
+</script>
+</body>
+</html>
