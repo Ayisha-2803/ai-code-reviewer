@@ -84,6 +84,16 @@ List specific, numbered action items the developer should address before merging
 ## 🏆 Overall Score
 Rate this PR: Excellent / Good / Needs Work / Major Issues
 And give a one-line verdict.
+
+## 🚨 ISSUES SUMMARY TABLE
+At the very end, provide a compact summary table in this EXACT format (one issue per line):
+ISSUE_START
+TYPE: Security | SEVERITY: Critical | ISSUE: Hardcoded secret key | FIX: Use environment variables
+TYPE: Security | SEVERITY: Critical | ISSUE: SQL Injection in login() | FIX: Use parameterized queries
+TYPE: Performance | SEVERITY: Medium | ISSUE: Large loop in get_all_data() | FIX: Use generators or pagination
+ISSUE_END
+
+Only include real issues found. Use severity: Critical, High, Medium, or Low.
 """
 
     response = requests.post(
@@ -104,9 +114,39 @@ And give a one-line verdict.
     data = response.json()
     return data["choices"][0]["message"]["content"]
 
+def parse_issues_table(review_text):
+    """Extract structured issues from the ISSUE_START...ISSUE_END block."""
+    issues = []
+    try:
+        start = review_text.index("ISSUE_START") + len("ISSUE_START")
+        end = review_text.index("ISSUE_END")
+        block = review_text[start:end].strip()
+        for line in block.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = {}
+            for segment in line.split("|"):
+                segment = segment.strip()
+                if ":" in segment:
+                    key, val = segment.split(":", 1)
+                    parts[key.strip()] = val.strip()
+            if parts:
+                issues.append(parts)
+    except (ValueError, Exception):
+        pass
+    return issues
+
 def post_review_comment(owner, repo, pr_number, review_text):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
-    body = f"## 🤖 AI Code Review by ReviewBot\n\n{review_text}\n\n---\n*Powered by AI via OpenRouter*"
+    # Clean the raw table from the GitHub comment
+    clean_review = review_text
+    try:
+        end = review_text.index("ISSUE_START")
+        clean_review = review_text[:end].strip()
+    except ValueError:
+        pass
+    body = f"## 🤖 AI Code Review by ReviewBot\n\n{clean_review}\n\n---\n*Powered by AI via OpenRouter*"
     response = requests.post(url, headers=HEADERS, json={"body": body})
     if response.status_code == 201:
         return True, response.json().get("html_url", "")
@@ -122,12 +162,22 @@ def run_review(pr_url, post_to_github=False):
         return {"error": "No code changes found in this PR."}
 
     review = review_code_with_openrouter(diff_text, pr_info)
+    issues = parse_issues_table(review)
+
+    # Remove raw table block from display text
+    display_review = review
+    try:
+        end = review.index("ISSUE_START")
+        display_review = review[:end].strip()
+    except ValueError:
+        pass
 
     result = {
         "pr_title": pr_info["title"],
         "author": pr_info["author"],
         "files_changed": len(files),
-        "review": review,
+        "review": display_review,
+        "issues": issues,
         "posted_to_github": False,
         "comment_url": ""
     }
